@@ -1,20 +1,27 @@
 /**
- * FluKAI — Tracking de Campanhas
- * Captura UTMs da URL, chama a API de tracking e embute o tracking_id
- * no botão WhatsApp para rastrear a origem do lead.
+ * FluKAI — Tracking de Campanhas (Traffic / Conversion campaigns)
+ *
+ * Funciona para campanhas que enviam o usuário para o site antes do WhatsApp:
+ * Google Ads, Meta Ads objetivo Trafego/Conversao, etc.
+ *
+ * Para campanhas Click-to-WhatsApp (Meta objetivo Mensagens),
+ * o tracking e feito pelo backend via objeto referral do webhook — nao precisa deste script.
  */
 
-const FLUKAI_API = 'https://api.flukai.com.br';
-const WA_NUMBER  = '5519995943382';
-const WA_MSG_BASE = 'Olá, vim pelo site e gostaria de uma demonstração da Flukai';
+const FLUKAI_API  = 'https://api.flukai.com.br';
+const WA_NUMBER   = '5519995943382';
+const WA_MSG_BASE = 'Ola, vim pelo site e gostaria de uma demonstracao da Flukai';
 
-// ─── 1. Captura UTMs e registra na API ───────────────────────────────────────
-
+// 1. Captura UTMs e registra na API
 async function capturarTracking() {
   const params = new URLSearchParams(window.location.search);
 
-  // Só rastreia se vier de campanha (utm_source, fbclid ou gclid presentes)
-  const temCampanha = params.get('utm_source') || params.get('fbclid') || params.get('gclid') || params.get('ttclid');
+  const temCampanha =
+    params.get('utm_source') ||
+    params.get('fbclid')     ||
+    params.get('gclid')      ||
+    params.get('ttclid');
+
   if (!temCampanha) return;
 
   const payload = {
@@ -33,7 +40,7 @@ async function capturarTracking() {
   };
 
   try {
-    const resp = await fetch(`${FLUKAI_API}/tracking/capture`, {
+    const resp = await fetch(FLUKAI_API + '/tracking/capture', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -45,49 +52,50 @@ async function capturarTracking() {
 
     if (data.tracking_id) {
       sessionStorage.setItem('flukai_tracking_id', data.tracking_id);
-      sessionStorage.setItem('flukai_utm_source', payload.utm_source);
+      sessionStorage.setItem('flukai_utm_source',  payload.utm_source);
       atualizarBotoesWhatsApp();
     }
   } catch (e) {
-    // Silencia erros para não afetar a UX
     console.warn('[FluKAI tracking] Erro ao capturar:', e);
   }
 }
 
-// ─── 2. Atualiza todos os botões WhatsApp com o tracking_id ──────────────────
-
+// 2. Atualiza todos os links WhatsApp com o tracking_id
 function atualizarBotoesWhatsApp() {
-  const trackingId = sessionStorage.getItem('flukai_tracking_id');
+  var trackingId = sessionStorage.getItem('flukai_tracking_id');
   if (!trackingId) return;
 
-  const mensagem = `${WA_MSG_BASE} Tracking: ${trackingId}`;
-  const urlWhatsApp = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(mensagem)}`;
+  var mensagem   = WA_MSG_BASE + ' Tracking: ' + trackingId;
+  var urlWhatsApp = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(mensagem);
 
-  // Atualiza todos os links WhatsApp da página
   document.querySelectorAll('a[href*="wa.me"]').forEach(function(btn) {
     btn.href = urlWhatsApp;
-
-    // Adiciona evento de clique para disparar pixel
-    btn.addEventListener('click', dispararPixelLead, { once: true });
+    btn.addEventListener('click', dispararEventos, { once: true });
   });
 }
 
-// ─── 3. Dispara evento Lead no Meta Pixel ────────────────────────────────────
-
-function dispararPixelLead() {
+// 3. Dispara eventos de conversao no clique do botao WhatsApp
+function dispararEventos() {
+  // Meta Pixel — Lead event
   if (typeof fbq === 'function') {
     fbq('track', 'Lead', {
       content_name: sessionStorage.getItem('flukai_utm_source') || 'organico',
     });
   }
+
+  // Google Ads — conversion event
+  if (typeof gtag === 'function') {
+    gtag('event', 'conversion', {
+      send_to: 'AW-18099359402',
+    });
+  }
 }
 
-// ─── 4. Inicialização ────────────────────────────────────────────────────────
-
+// 4. Inicializacao
 document.addEventListener('DOMContentLoaded', function () {
   capturarTracking();
 
-  // Se já tiver tracking_id salvo na sessão (usuário voltou à página), aplica imediatamente
+  // Aplica imediatamente se ja tiver tracking_id na sessao
   if (sessionStorage.getItem('flukai_tracking_id')) {
     atualizarBotoesWhatsApp();
   }
