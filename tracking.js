@@ -8,7 +8,7 @@
  * o tracking e feito pelo backend via objeto referral do webhook — nao precisa deste script.
  */
 
-const FLUKAI_API  = 'https://api.flukai.com.br';
+const FLUKAI_API = 'https://api.flukai.com.br/api/v1';
 const WA_NUMBER   = '5519995943382';
 const WA_MSG_BASE = 'Ola, vim pelo site e gostaria de uma demonstracao da Flukai';
 
